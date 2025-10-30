@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Users</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background-color: #f9f9f9;
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+    table {
+      width: 80%;
+      margin: 20px auto;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    button {
+      padding: 6px 12px;
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #c82333;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Manage Users</h2>
+  <table id="usersTable">
+    <thead>
+      <tr>
+        <th>FullName</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Address</th>
+        <th>Gender</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+        {% for i in use %}
+      <tr>
+       
+        <td>{{i.FullName}}</td>
+        <td>{{i.Email}}</td>
+        <td>{{i.Phone}}</td>
+        <td>{{i.Address}}</td>
+        <td>{{i.Gender}}</td>
+
+   
+        <td><a href="/Deleteuser/{{i.LOGINID.id}}"><button onclick="deleteUser(this)">Delete</button></td></a>
+      </tr>
+      {% endfor %}
+ 
+    </tbody>
+  </table>
+
+
+
+</body>
+</html>

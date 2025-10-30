@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Complaints and Send Reply</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f9fc;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 1000px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+
+    .reply-form {
+      background: #f9fafc;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    .reply-form label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .reply-form textarea {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      resize: none;
+      margin-bottom: 15px;
+    }
+
+    .reply-form button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .reply-form button:hover {
+      background-color: #0056b3;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>View Complaints and Send Reply</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Complaint</th>
+          <th>reply</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in complaint %}
+        <tr>
+       <td>{{i.Complaint}}</td>
+        {% if i.Reply %}
+<td>          {{i.Reply}}</td>
+  {% else %}
+     <td><form action="/ReplyView/{{i.id}}" method="post">
+      {% csrf_token %}
+       <textarea id="reply"  name="Reply" placeholder="Type your reply here..."></textarea>
+      <button type="submit">Send Reply</button></form></td>
+      {% endif %}
+
+        </tr>
+        {% endfor %}
+      </tbody>
+
+    </table>
+
+   
+</body>
+</html>
+

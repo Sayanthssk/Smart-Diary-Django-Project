@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Table</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f7f7f7;
+            padding: 20px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .delete-btn {
+            background-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Feedback List</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>FullName</th>
+            <th>feedback</th>
+            <th>Action</th>
+       
+        </tr>
+    </thead>
+    <tbody>
+        {% for i in feed %}
+        <tr>
+          <td>{{i.USERID.FullName}}</td>
+          <td>{{i.feedback}}</td>
+
+            <td><a href="/DeleteFeed/{{i.id}}"><button class="action-btn delete-btn">Delete</button></a></td>
+        </tr>
+   {% endfor %}
+        <!-- Add more feedback rows here -->
+    </tbody>
+</table>
+
+</body>
+</html>
