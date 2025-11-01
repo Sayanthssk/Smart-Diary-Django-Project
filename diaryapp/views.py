@@ -607,6 +607,17 @@ class ViewProfile(APIView):
         c = UserModel.objects.get(LOGINID__id = lid)
         ser = User_Serializer(c)
         return  Response(ser.data, status = HTTP_200_OK)
+    def put(self, request, lid):
+        try:
+            user = UserModel.objects.get(LOGINID__id=lid)
+        except UserModel.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = User_Serializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Profile updated successfully", "data": serializer.data}, status=HTTP_200_OK)
+        return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
     
 
 from django.db.models import Sum
@@ -761,6 +772,30 @@ class ViewDailyActivityGraph(APIView):
         return Response(response, status=status.HTTP_200_OK)
     
 
+# class AddReminder(APIView):
+#     def post(self, request, lid):
+#         print("Incoming Reminder Data:", request.data)
+
+#         try:
+#             user = UserModel.objects.get(LOGINID__id=lid)
+#         except UserModel.DoesNotExist:
+#             return Response({"error": "User not found"}, status=HTTP_400_BAD_REQUEST)
+
+#         serializer = ReminderSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save(USERID=user)
+#             return Response({"message": "Reminder Added Successfully"}, status=HTTP_200_OK)
+#         else:
+#             print("Serializer Errors:", serializer.errors)
+#             return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
+        
+#     def get(self, request, lid):
+#         c = ReminderModel.objects.filter(USERID__LOGINID__id = lid)
+#         serializer = ReminderSerializer(c, many=True)
+#         print(serializer.data)
+#         return Response(serializer.data, status=HTTP_200_OK)
+    
+
 class AddReminder(APIView):
     def post(self, request, lid):
         print("Incoming Reminder Data:", request.data)
@@ -773,15 +808,60 @@ class AddReminder(APIView):
         serializer = ReminderSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(USERID=user)
-            return Response({"message": "Reminder Added Successfully"}, status=HTTP_200_OK)
-        else:
-            print("Serializer Errors:", serializer.errors)
-            return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
-        
-    def get(self, request, lid):
-        c = ReminderModel.objects.filter(USERID__LOGINID__id = lid)
-        serializer = ReminderSerializer(c, many=True)
-        print(serializer.data)
-        return Response(serializer.data, status=HTTP_200_OK)
-    
+            print("✅ Reminder added successfully")
 
+            # 🧹 After adding, remove expired reminders automatically
+            self.delete_expired_reminders(user)
+            return Response({"message": "Reminder Added Successfully"}, status=HTTP_200_OK)
+
+        print("Serializer Errors:", serializer.errors)
+        return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
+
+    def get(self, request, lid):
+        try:
+            user = UserModel.objects.get(LOGINID__id=lid)
+        except UserModel.DoesNotExist:
+            return Response({"error": "User not found"}, status=HTTP_400_BAD_REQUEST)
+
+        # 🧹 Before fetching, delete old reminders
+        self.delete_expired_reminders(user)
+
+        # ✅ Fetch current (active) reminders
+        reminders = ReminderModel.objects.filter(USERID=user)
+        serializer = ReminderSerializer(reminders, many=True)
+        print("Active Reminders:", serializer.data)
+
+        return Response(serializer.data, status=HTTP_200_OK)
+
+    # 🧠 Helper function to delete expired reminders
+    def delete_expired_reminders(self, user):
+        now = datetime.now()
+        expired = ReminderModel.objects.filter(USERID=user).filter(
+            Date__lt=now.date()
+        ) | ReminderModel.objects.filter(
+            USERID=user, Date=now.date(), Time__lt=now.time()
+        )
+        deleted_count = expired.delete()[0]
+        if deleted_count > 0:
+            print(f"🧹 Deleted {deleted_count} expired reminders for user {user.id}")
+            
+
+class FeedBackAPI(APIView):
+    def post(self, request, lid):
+        c= UserModel.objects.get(LOGINID__id = lid)
+        serializers = FeedbackSerializer(data = request.data)
+        if serializers.is_valid():
+            serializers.save(USERID=c)
+            return Response(serializers.data, status=HTTP_200_OK)
+        
+class ComplaintAPI(APIView):
+    def get(self, request, lid):
+        c = complaintsModel.objects.filter(USERID__LOGINID__id = lid)
+        ser= ComplaintSerializer(c, many=True)
+        return Response(ser.data, HTTP_200_OK)
+    def post(self, request, lid):
+        c = UserModel.objects.get(LOGINID__id = lid)
+        ser = ComplaintSerializer(data=request.data)
+        if ser.is_valid():
+            ser.save(USERID = c)
+            return Response({"message":"Complaint added successfully"}, status=HTTP_200_OK)

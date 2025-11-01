@@ -22,7 +22,6 @@ class FeedbackModel(models.Model):
 
 class complaintsModel(models.Model):
     USERID= models.ForeignKey(UserModel, on_delete=models.CASCADE, null=True, blank=True) 
-
     Complaint=models.TextField(max_length=100,null=True,blank=True)
     Reply=models.CharField(max_length=100,null=True,blank=True)  
 

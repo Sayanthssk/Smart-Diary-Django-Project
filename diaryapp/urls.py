@@ -26,4 +26,6 @@ path('ReplyView/<int:id>',ReplyView.as_view(), name='ReplyView'),
     path('api/histories/<int:lid>', ViewUserHistory.as_view()),
     path('api/viewactivitygraph/<int:lid>/', ViewDailyActivityGraph.as_view()),
     path('api/reminders/<int:lid>', AddReminder.as_view()),
+    path('api/feedback/<int:lid>', FeedBackAPI.as_view()),  
+    path('api/complaint/<int:lid>', ComplaintAPI.as_view()),
 ]

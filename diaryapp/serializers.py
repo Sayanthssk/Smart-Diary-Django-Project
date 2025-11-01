@@ -90,3 +90,14 @@ class ReminderSerializer(ModelSerializer):
                 pass
 
         return super().to_internal_value(mutable_data)
+    
+
+class FeedbackSerializer(ModelSerializer):
+    class Meta:
+        model = FeedbackModel
+        fields = "__all__"
+
+class ComplaintSerializer(ModelSerializer):
+    class Meta:
+        model = complaintsModel
+        fields = "__all__"
