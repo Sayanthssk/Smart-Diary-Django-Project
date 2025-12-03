@@ -486,9 +486,7 @@ class AddDailyActivity(APIView):
         return emotion
 
 
-    # -----------------------------
-    # 💰 Salary Extraction Logic
-    # -----------------------------
+
     def extract_salary(self, text):
         """Extract numeric salary amount from text (supports lakh, crore, thousand, k, word-based numbers)."""
         if not isinstance(text, str):
@@ -511,7 +509,7 @@ class AddDailyActivity(APIView):
             amount_str = re.sub(r"lakh[s]?", "", amount_str)
         elif "crore" in amount_str:
             multiplier = 10000000
-            amount_str = re.sub(r"crore[s]?", "", amount_str)
+            amount_str = re.sub(r"crore[s]?", "", amount_str) 
         elif "thousand" in amount_str:
             multiplier = 1000
             amount_str = re.sub(r"thousand", "", amount_str)
