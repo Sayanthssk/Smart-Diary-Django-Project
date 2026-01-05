@@ -86,6 +86,7 @@ class Homepage(View):
 #///////////////////////////////////////////////////////api//////////////////////////////////////////#
 
 from django.shortcuts import render
+from django.core.mail import send_mail
 from .models import *
 # Create your views here.
 from django.contrib.auth.hashers import make_password
@@ -123,36 +124,80 @@ class UserReg_api(APIView):
             'user_error': user_serial.errors if not data_valid else None
         }, status=status.HTTP_400_BAD_REQUEST)
     
+import random
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
+
 
 class LoginPageAPI(APIView):
     def post(self, request):
-        print("####################")
+        print("###################", request.data)
         response_dict = {}
 
-        # Get data from the request
-        username = request.data.get("username")
-        password = request.data.get("password")
-        print("$$$$$$$$$$$$$$",username)
-        # Validate input
+        username = request.data.get("username")     
+        # password = request.data.get("password")
+        print("###################", username)
+        if not username :
+            return Response(
+                {"message": "Invalid Username or Password"},
+                status=HTTP_400_BAD_REQUEST
+            )
 
-        if not username or not password:
-            response_dict["message"] = "Invalid Username or Password"
-            return Response(response_dict, status=HTTP_400_BAD_REQUEST)
+        user = LoginModel.objects.filter(
+            Username=username,
+        ).first()
 
-        # Fetch the user from LoginTable
-        t_user = LoginModel.objects.filter(Username=username, Password=password).first()
-        print("%%%%%%%%%%%%%%%%%%%%", t_user)
+        if not user:
+            return Response(
+                {"message": "Credentials invalid"},
+                status=HTTP_401_UNAUTHORIZED
+            )
 
-        if not t_user:
-            response_dict["message"] = "Credentials invalid please check Username and Password"
-            return Response(response_dict, status=HTTP_401_UNAUTHORIZED)
+        otp = str(random.randint(100000, 999999))
 
-        else:
-            response_dict["message"] = "success"
-            response_dict["login_id"] = t_user.id
-            response_dict["UserType"] = t_user.UserType
+        user.otp = otp
+        user.otp_verified = False
+        user.save()
 
-            return Response(response_dict, status=HTTP_200_OK)
+        send_mail(
+            subject="Login OTP Verification",
+            message=f"Your OTP for login is {otp}",
+            from_email=None,
+            recipient_list=[user.Username],
+            fail_silently=False,
+        )
+
+        return Response({
+            "message": "OTP sent to your email",
+            "login_id": user.id
+        }, status=HTTP_200_OK)
+
+
+class VerifyOTPAPI(APIView):
+    def post(self, request):
+        print("###################", request.data)
+        login_id = request.data.get("login_id")
+        otp = request.data.get("otp")
+        print("########## LOGINID #########", login_id)
+        user = LoginModel.objects.filter(id=login_id, otp=otp).first()
+
+        if not user:
+            return Response(
+                {"message": "Invalid OTP"},
+                status=HTTP_400_BAD_REQUEST
+            )
+
+        user.otp_verified = True
+        user.otp = None
+        user.save()
+
+        return Response({
+            "message": "Login successful",
+            "login_id": user.id,
+            "UserType": user.UserType
+        }, status=HTTP_200_OK)
+
         
 # from textblob import TextBlob  
 # from transformers import pipeline  # install: pip install transformers torch
@@ -297,7 +342,7 @@ class LoginPageAPI(APIView):
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from datetime import datetime
+from datetime import datetime, timedelta, time
 from transformers import pipeline
 import whisper
 import tempfile
@@ -314,6 +359,7 @@ emotion_analyzer = pipeline(
 )
 
 # Load Whisper model globally (for better speed)
+
 whisper_model = whisper.load_model("base")
 
 
@@ -326,67 +372,107 @@ class AddDailyActivity(APIView):
     def post(self, request, lid):
         print("Incoming Data:", request.data)
 
-        # 1️⃣ Get the user
+        # --------------------------------------------------
+        # 1️⃣ Get user
+        # --------------------------------------------------
         try:
             user = UserModel.objects.get(LOGINID__id=lid)
         except UserModel.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # --------------------------------------------------
         # 2️⃣ Extract description safely
+        # --------------------------------------------------
         description = ""
+
         if "Description" in request.data:
             desc_data = request.data["Description"]
             if isinstance(desc_data, list):
-                description = desc_data[0] if len(desc_data) > 0 else ""
+                description = desc_data[0] if desc_data else ""
             elif isinstance(desc_data, str):
                 description = desc_data
+
         elif "transactions" in request.data:
             tx = request.data.get("transactions", [])
-            if isinstance(tx, list) and len(tx) > 0:
-                description = tx[0]
+            if isinstance(tx, list):
+                description = tx[0] if tx else ""
             elif isinstance(tx, str):
                 description = tx
 
-        # 3️⃣ Handle voice file upload (if present)
+        # --------------------------------------------------
+        # 3️⃣ Voice to text (if uploaded)
+        # --------------------------------------------------
         if "voice" in request.FILES:
             voice_file = request.FILES["voice"]
-            print(f"🎙 Received voice file: {voice_file.name}")
+            print(f"🎙 Voice file received: {voice_file.name}")
             description = self.voice_to_text(voice_file)
-            print(f"Converted text: {description}")
 
-        print("Extracted description:", description)
+        print("📝 Final Description:", description)
 
+        # --------------------------------------------------
         # 4️⃣ Predict mood
+        # --------------------------------------------------
         mood = self.predict_mood(description)
-        print("Predicted mood:", mood)
+        print("🎭 Predicted Mood:", mood)
 
-        # 5️⃣ Extract salary if present
+        # --------------------------------------------------
+        # 5️⃣ Salary extraction
+        # --------------------------------------------------
         salary_amount = self.extract_salary(description)
         if salary_amount:
             try:
-                # Get Day from frontend
-                day_value = request.data.get("Day")
-                if isinstance(day_value, list):
-                    day_value = day_value[0]
-
-                # Convert string date (e.g. "29/10/2025") to date object
-                try:
-                    day_obj = datetime.strptime(day_value, "%d/%m/%Y").date()
-                except Exception:
-                    day_obj = datetime.now().date()
-
-                # ✅ Save salary info to database
+                day_obj = self.get_day(request)
                 SalaryTable.objects.create(
                     USERID=user,
                     salary=salary_amount,
                     Description=description,
                     Day=day_obj
                 )
-                print(f"💰 Salary detected and saved: {salary_amount}")
+                print(f"💰 Salary saved: {salary_amount}")
             except Exception as e:
-                  print("❌ Error saving salary record:", e)
+                print("❌ Salary save failed:", e)
 
-        # 6️⃣ Prepare data for saving activity
+        # --------------------------------------------------
+        # 6️⃣ Expense extraction
+        # --------------------------------------------------
+        expense_amount = self.extract_expense(description)
+        if expense_amount:
+            try:
+                day_obj = self.get_day(request)
+                ExpenseTable.objects.create(
+                    USERID=user,
+                    Amount=expense_amount,
+                    Description=description,
+                    Day=day_obj,
+                    ExpenseType="General"
+                )
+                print(f"💸 Expense saved: {expense_amount}")
+            except Exception as e:
+                print("❌ Expense save failed:", e)
+
+        # --------------------------------------------------
+        # 7️⃣ Reminder extraction
+        # --------------------------------------------------
+        reminder_text, reminder_date, reminder_time = self.extract_reminder(description)
+
+        if reminder_text and reminder_date:
+            try:
+                ReminderModel.objects.create(
+                    USERID=user,
+                    Reminder=reminder_text,
+                    Date=reminder_date,
+                    Time=reminder_time
+                )
+                print("⏰ Reminder saved")
+            except Exception as e:
+                print("❌ Reminder save failed:", e)
+
+        # --------------------------------------------------
+        # 8️⃣ Save daily activity
+        # --------------------------------------------------
         data = {
             "Description": description,
             "mood": mood,
@@ -398,14 +484,29 @@ class AddDailyActivity(APIView):
         if serializer.is_valid():
             serializer.save(USERID=user)
             return Response({
-                'message': "Activity added successfully",
-                'predicted_mood': mood,
-                'salary_detected': salary_amount,
-                'converted_text': description
+                "message": "Activity added successfully",
+                "predicted_mood": mood,
+                "salary_detected": salary_amount,
+                "expense_detected": expense_amount,
+                "reminder_detected": bool(reminder_text),
+                "converted_text": description
             }, status=status.HTTP_200_OK)
-        else:
-            print("Serializer Errors:", serializer.errors)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # ==================================================
+    # 🔧 HELPER FUNCTIONS
+    # ==================================================
+
+    def get_day(self, request):
+        day_value = request.data.get("Day")
+        if isinstance(day_value, list):
+            day_value = day_value[0]
+
+        try:
+            return datetime.strptime(day_value, "%d/%m/%Y").date()
+        except Exception:
+            return datetime.now().date()
 
 
     # -----------------------------
@@ -539,9 +640,116 @@ class AddDailyActivity(APIView):
         return None
 
 
+    def extract_expense(self, text):
+        """Extract numeric expense amount from text (supports lakh, crore, thousand, k, word-based numbers)."""
+        if not isinstance(text, str):
+            return None
 
+        text = text.lower()
 
+        expense_pattern = r'\b(?:spent|paid|bought|cost|bill|recharge|purchase|gave)\b.*?\b([\w\s.,]+(?:lakh|lakhs|crore|crores|thousand|k)?)\b'
+        match = re.search(expense_pattern, text, re.IGNORECASE)
+        if not match:
+            return None
+
+        amount_str = match.group(1).strip().lower()
+        amount_str = amount_str.replace(",", "")
+
+        multiplier = 1
+        if "lakh" in amount_str:
+            multiplier = 100000
+            amount_str = re.sub(r"lakh[s]?", "", amount_str)
+        elif "crore" in amount_str:
+            multiplier = 10000000
+            amount_str = re.sub(r"crore[s]?", "", amount_str) 
+        elif "thousand" in amount_str:
+            multiplier = 1000
+            amount_str = re.sub(r"thousand", "", amount_str)
+        elif "k" in amount_str:
+            multiplier = 1000
+            amount_str = re.sub(r"k", "", amount_str)
+
+        amount_str = amount_str.strip()
+
+        try:
+            numeric_part = None
+            try:
+                numeric_part = w2n.word_to_num(amount_str)
+            except Exception:
+                numeric_part = float(re.findall(r"[\d.]+", amount_str)[0]) if re.findall(r"[\d.]+", amount_str) else None
+
+            if numeric_part:
+                expense_value = numeric_part * multiplier
+                return expense_value
+        except Exception as e:
+            print("❌ Expense parse failed:", e)
+            return None
+
+        return None
+
+    def extract_reminder(self, text):
+        if not text:
+            return None, None, None
+
+        text_lower = text.lower()
+
+        keywords = [
+            "remind", "appointment", "meeting", "party",
+            "wedding", "function", "event", "pay",
+            "call", "submit"
+        ]
+
+        if not any(k in text_lower for k in keywords):
+            return None, None, None
+
+        today = datetime.now().date()
+        date_obj = None
+
+        # 📅 Date detection
+        if "today" in text_lower:
+            date_obj = today
+        elif "tomorrow" in text_lower:
+            date_obj = today + timedelta(days=1)
+        else:
+            # Matches dd/mm/yyyy or dd-mm-yyyy or dd/mm/yy
+            match = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})', text_lower)
+            if match:
+                try:
+                    day, month, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                    # Handle 2-digit year
+                    if year < 100:
+                        year += 2000
+                    date_obj = datetime(year, month, day).date()
+                except:
+                    pass
         
+        # Default to tomorrow if keyword found but no date
+        if not date_obj:
+             date_obj = today + timedelta(days=1)
+
+
+        # ⏰ Time detection
+        time_obj = None
+        time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s?(am|pm)?', text_lower)
+        if time_match:
+            try:
+                h = int(time_match.group(1))
+                m = int(time_match.group(2)) if time_match.group(2) else 0
+                meridian = time_match.group(3)
+
+                if meridian == "pm" and h != 12:
+                    h += 12
+                if meridian == "am" and h == 12:
+                    h = 0
+                
+                if 0 <= h <= 23 and 0 <= m <= 59:
+                     time_obj = time(hour=h, minute=m)
+            except:
+                pass
+
+
+        return text.strip(), date_obj, time_obj
+
 
 class AddExpenceAPI(APIView):
     def post(self, request, lid):
@@ -713,23 +921,37 @@ class ViewUserHistory(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
     
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from datetime import date
+from collections import Counter
+
 class ViewDailyActivityGraph(APIView):
     """
-    📊 Return separate mood and description history for graph visualization
+    📊 Return mood graph + description graph + daily summary mood
     """
 
     def get(self, request, lid):
         try:
             user = UserModel.objects.get(LOGINID__id=lid)
         except UserModel.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        activities = DailyActivities.objects.filter(USERID=user).order_by('Day')
+        activities = DailyActivities.objects.filter(
+            USERID=user
+        ).order_by('Day')
 
         if not activities.exists():
-            return Response({'message': 'No daily activities found'}, status=status.HTTP_200_OK)
+            return Response(
+                {'message': 'No daily activities found'},
+                status=status.HTTP_200_OK
+            )
 
-        # 🎭 Convert moods to numeric values for charting
+        # 🎭 Mood mapping for graph
         mood_mapping = {
             'happy': 5,
             'excited': 4,
@@ -749,7 +971,6 @@ class ViewDailyActivityGraph(APIView):
             mood_value = mood_mapping.get(mood_text.lower(), 0)
             description = act.Description if act.Description else ""
 
-            # Separate data for both graphs
             mood_graph.append({
                 "date": date_str,
                 "mood": mood_text,
@@ -761,14 +982,28 @@ class ViewDailyActivityGraph(APIView):
                 "description": description
             })
 
+        # 🧠 DAILY SUMMARY MOOD (TODAY)
+        today_activities = activities.filter(Day=date.today())
+        today_moods = [a.mood for a in today_activities if a.mood]
+
+        daily_summary_mood = (
+            Counter(today_moods).most_common(1)[0][0]
+            if today_moods else "Neutral"
+        )
+
         response = {
             "mood_graph": mood_graph,
-            "description_graph": description_graph
+            "description_graph": description_graph,
+            "daily_summary": {
+                "date": date.today(),
+                "predicted_mood": daily_summary_mood,
+                "activity_count": today_activities.count()
+            }
         }
 
-        print(f"✅ Graph data for user {lid}: {response}")
+        print(f"✅ Graph + Summary data for user {lid}: {response}")
         return Response(response, status=status.HTTP_200_OK)
-    
+
 
 # class AddReminder(APIView):
 #     def post(self, request, lid):
@@ -863,3 +1098,44 @@ class ComplaintAPI(APIView):
         if ser.is_valid():
             ser.save(USERID = c)
             return Response({"message":"Complaint added successfully"}, status=HTTP_200_OK)
+
+
+class DeleteEntries(APIView):
+    def post(self, request, id):
+        c = DailyActivities.objects.get(id=id)
+        c.delete()
+        return Response({"message":"Entry deleted successfully"}, status=HTTP_200_OK)
+        
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from datetime import date
+from collections import Counter
+from rest_framework.status import HTTP_200_OK, HTTP_404_NOT_FOUND
+
+class DailySummary(APIView):
+    def get(self, request, user_id):
+        activities = DailyActivities.objects.filter(
+            USERID__LOGINID__id=user_id,
+            Day=date.today()
+        )
+
+        if not activities.exists():
+            return Response(
+                {"message": "No activities logged today"},
+                status=HTTP_404_NOT_FOUND
+            )
+
+        descriptions = " ".join(
+            a.Description for a in activities if a.Description
+        )
+
+        moods = [a.mood for a in activities if a.mood]
+        overall_mood = Counter(moods).most_common(1)[0][0] if moods else "Neutral"
+
+        return Response({
+            "date": date.today(),
+            "total_activities": activities.count(),
+            "overall_mood": overall_mood,
+            "summary": descriptions[:300] + "..." if len(descriptions) > 300 else descriptions
+        }, status=HTTP_200_OK)

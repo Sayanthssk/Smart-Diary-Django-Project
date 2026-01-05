@@ -3,9 +3,13 @@ from django.db import models
 # Create your models here.
 
 class LoginModel(models.Model):
-    Username = models.CharField(max_length=100, null=True, blank=True)
+    Username = models.CharField(max_length=100, null=True, blank=True)  
     Password = models.CharField(max_length=100, null=True, blank=True)
     UserType = models.CharField(max_length=100, null=True, blank=True)
+
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    otp_verified = models.BooleanField(default=False)
+
 
 
 class UserModel(models.Model):
